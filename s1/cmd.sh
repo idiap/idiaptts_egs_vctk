@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# Copyright (c) 2019 Idiap Research Institute, http://www.idiap.ch/
+# Written by Bastian Schnell <bastian.schnell@idiap.ch>
+#
+
+export IDIAPTTS_ROOT=$(python -c 'import os;import idiaptts; print(os.path.dirname(idiaptts.__file__))')
 
 # "queue.pl" uses qsub.  The options to it are
 # options to qsub.  If you have GridEngine installed,
@@ -9,10 +15,10 @@
 
 #a) Sun grid options (IDIAP)
 # ATTENTION: Do that in your shell: SETSHELL grid
-export cuda_cmd="queue.pl -l gpu"
-export cuda_short_cmd="queue.pl -l sgpu"
-export cpu_1d_cmd="queue.pl -l q_1day"
-export cpu_1d_32G_cmd="queue.pl -l q_1day_mth -pe pe_mth 4" # TODO: Needs testing.
+export cuda_cmd="queue.pl -l gpu -v IDIAPTTS_ROOT"
+export cuda_short_cmd="queue.pl -l sgpu -v IDIAPTTS_ROOT"
+export cpu_1d_cmd="queue.pl -l q_1day -v IDIAPTTS_ROOT"
+export cpu_1d_32G_cmd="queue.pl -l q_1day_mth -pe pe_mth 4 -v IDIAPTTS_ROOT" # TODO: Needs testing.
 #export cuda_cmd="queue.pl -l q1d,hostname=dynamix03"
 #export cuda_cmd="..."
 queue_gpu="q_gpu"  # q_gpu, q_short_gpu, cpu

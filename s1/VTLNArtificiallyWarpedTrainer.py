@@ -243,9 +243,9 @@ def main():
 
     # General parameters.
     hparams.phoneme_indices = np.arange(59, 107, dtype=np.int)
-    hparams.question_file = "../../../tools/tts_frontend/questions/questions-en-radio_dnn_416.hed"
+    hparams.question_file = os.path.dirname(os.environ['IDIAPTTS_ROOT']) + "/tools/tts_frontend/questions/questions-en-radio_dnn_416.hed"
     # hparams.phoneme_indices = np.arange(86, 347, 5, dtype=np.int)
-    # hparams.question_file = "../../../tools/tts_frontend/questions/questions-de-festival_496.hed"
+    # hparams.question_file = os.path.dirname(os.environ['IDIAPTTS_ROOT']) + "/tools/tts_frontend/questions/questions-de-festival_496.hed"
     hparams.num_questions = 425
     hparams.voice = "English"
     hparams.work_dir = os.path.realpath(os.path.join("experiments", hparams.voice))

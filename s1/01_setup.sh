@@ -31,7 +31,7 @@ EOF
 #                # Use "|| true" for those who are allowed to fail.
 #                # Disable (set +e) this mode if you want to know a nonzero return value.
 # set -o pipefail # Catch mysqldump fails.
- set -o nounset # Exit when using undeclared variables, same as "set -u".
+# set -o nounset # Exit when using undeclared variables, same as "set -u".
 # set -o noclobber # Prevents the bash shell from overwriting files, but you can force it with ">|".
 export SHELLOPTS # Used to pass above shell options to any called subscripts.
 
@@ -39,8 +39,13 @@ readonly PROGNAME=$(basename $0)
 readonly PROGDIR=$(readlink -m $(dirname $0))
 readonly ARGS="$@"
 
+if [ -z "${IDIAPTTS_ROOT}" ]; then
+  echo "IDIAPTTS_ROOT variable not set. Please run 'source cmd.sh' first."
+  exit 1
+fi
+
 # Fixed paths.
-dir_src=$(realpath "../../../idiaptts/src/")
+dir_src="${IDIAPTTS_ROOT}/src/"
 
 # Magic variables.
 demo_set_size=300
