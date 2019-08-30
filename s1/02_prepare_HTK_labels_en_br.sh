@@ -51,6 +51,7 @@ fi
 # Fixed paths.
 dir_src="${IDIAPTTS_ROOT}/src/"
 dir_tools="${IDIAPTTS_ROOT}/../tools/"
+dir_scripts="${IDIAPTTS_ROOT}/scripts/"
 dir_misc="${IDIAPTTS_ROOT}/misc/"
 dir_data=$(realpath "database/")
 
@@ -150,7 +151,7 @@ done
 
 # Create labels for all utterance blocks. Send commands as job array.
 echo "Create labels..."
-./${cpu_1d_cmd} JOB=1:${num_blocks} ${dir_logs}/utts_selected.dataJOB.log ${dir_tools}/tts_frontend/English/makeLabels.sh ${dir_tools}/festival/ ${dir_labels}/utts_selected.data_blockJOB BR ${dir_labels}/../
+./${cpu_1d_cmd} JOB=1:${num_blocks} ${dir_logs}/utts_selected.dataJOB.log ${dir_scripts}/tts_frontend/English/makeLabels.sh ${dir_tools}/festival/ ${dir_labels}/utts_selected.data_blockJOB BR ${dir_labels}/../
 
 # Remove intermediate files.
 rm -f ${dir_labels}/utts_selected.data
