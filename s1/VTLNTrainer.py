@@ -12,7 +12,6 @@
 """
 
 # System imports.
-import sys
 import logging
 import os
 import shutil
@@ -20,11 +19,10 @@ import shutil
 # Third-party imports.
 
 # Local source tree imports.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))))  # Adds the ITTS folder to the path.
-from src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
-from egs.VCTK.s1 import vctk_utils
-from misc.utils import makedirs_safe
-from src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
+from idiaptts.src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
+from idiaptts.misc.utils import makedirs_safe
+from idiaptts.src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
+import vctk_utils
 
 
 class VTLNTrainer(VTLNSpeakerAdaptionModelTrainer):
@@ -43,11 +41,12 @@ class VTLNTrainer(VTLNSpeakerAdaptionModelTrainer):
             id_list = f.readlines()
         id_list[:] = [s.strip(' \t\n\r') for s in id_list]  # Trim line endings in-place.
 
-        # TODO: Ignore unvoiced frames?
+        # # To ignore unvoiced frames.
         # if hparams.add_deltas:
         #     self.loss_function = WMSELoss(hparams.num_coded_sps * 3 + 7, -4, weight=0.0, decision_index_weight=1.0, reduce=False)
         # else:
         #     self.loss_function = WMSELoss(hparams.num_coded_sps + 3, -2, weight=0.0, decision_index_weight=1.0, reduce=False)
+
         super().__init__(dir_world_labels, dir_question_labels, id_list, hparams.num_questions, hparams)
 
 
@@ -57,21 +56,20 @@ def main():
     hparams = VTLNTrainer.create_hparams()  # TODO: Parse input for hparams.
 
     # General parameters.
-    hparams.num_questions = 425
+    hparams.num_questions = 609
     hparams.voice = "English"
     hparams.work_dir = os.path.realpath(os.path.join("experiments", hparams.voice))
     hparams.data_dir = os.path.realpath("database")
     hparams.out_dir = os.path.join(hparams.work_dir, "VTLNModel")
     hparams.num_speakers = 33
     hparams.speaker_emb_dim = 128
-    hparams.sampling_frequency = 16000
     hparams.frame_size_ms = 5
     hparams.seed = 1234
     hparams.num_coded_sps = 30
     hparams.add_deltas = True
 
     # Training parameters.
-    hparams.epochs = 0
+    hparams.epochs = 15
     hparams.use_gpu = True
     hparams.train_pre_net = True
     hparams.dropout = 0.05
@@ -79,7 +77,7 @@ def main():
     hparams.batch_size_val = hparams.batch_size_train
     hparams.batch_size_benchmark = hparams.batch_size_train
     hparams.grad_clip_norm_type = 2
-    hparams.grad_clip_max_norm = 100
+    hparams.grad_clip_max_norm = 1.0
     hparams.use_saved_learning_rate = False
     hparams.optimiser_args["lr"] = 0.001
     hparams.optimiser_type = "Adam"
@@ -99,30 +97,33 @@ def main():
 
     # Training.
     makedirs_safe(os.path.join(hparams.out_dir, "nn"))
-    shutil.copyfile(os.path.join(hparams.work_dir, "BaselineModel", "nn", hparams.pre_net_model_name),
-                    os.path.join(hparams.out_dir, "nn", hparams.pre_net_model_name))
+    source_model_path = os.path.join(hparams.work_dir, "BaselineModel", "nn", hparams.pre_net_model_name)
+    target_model_path = os.path.join(hparams.out_dir, "nn", hparams.pre_net_model_name)
+    logging.info("Copy {} to {}.".format(source_model_path, target_model_path))
+    shutil.copyfile(source_model_path, target_model_path)
+
     trainer = VTLNTrainer(hparams)
     trainer.init(hparams)
     trainer.train(hparams)
     trainer.benchmark(hparams)
 
-    # # hparams.synth_gen_figure = False
-    # hparams.synth_vocoder = "WORLD"
-    #
-    # synth_list = dict()
-    # synth_list["train"] = ["p225/p225_010", "p226/p226_010", "p239/p239_010"]
-    # synth_list["val"] = ["p225/p225_051", "p226/p226_009", "p239/p239_066"]
-    # synth_list["test"] = ["p225/p225_033", "p226/p226_175", "p239/p239_056"]
-    #
-    # # with open(os.path.join(hparams.data_dir, "file_id_list_English_listening_test.txt" + sys.argv[1])) as f:
-    # #     id_list_val = f.readlines()
-    # # synth_list["val"] = [s.strip(' \t\n\r') for s in id_list_val]  # Trim line endings in-place.
-    #
-    # for key, value in synth_list.items():
-    #     hparams.synth_file_suffix = "_" + str(key) + "_" + hparams.synth_vocoder
-    #     trainer.synth(hparams, synth_list[key])
-    #     # trainer.synth_ref(synth_list[key], hparams)
-    #     # trainer.gen_figure(synth_list[key], hparams)
+    # hparams.synth_gen_figure = False
+    hparams.synth_vocoder = "WORLD"
+
+    synth_list = dict()
+    synth_list["train"] = ["p225/p225_010", "p226/p226_010", "p239/p239_010"]
+    synth_list["val"] = ["p225/p225_051", "p226/p226_009", "p239/p239_066"]
+    synth_list["test"] = ["p225/p225_033", "p226/p226_175", "p239/p239_056"]
+
+    # with open(os.path.join(hparams.data_dir, "file_id_list_English_listening_test.txt" + sys.argv[1])) as f:
+    #     id_list_val = f.readlines()
+    # synth_list["val"] = [s.strip(' \t\n\r') for s in id_list_val]  # Trim line endings in-place.
+
+    for key, value in synth_list.items():
+        hparams.synth_file_suffix = "_" + str(key)
+        trainer.synth(hparams, synth_list[key])
+        # trainer.synth_ref(hparams, synth_list[key])
+        # trainer.gen_figure(hparams, synth_list[key])
 
 
 if __name__ == "__main__":

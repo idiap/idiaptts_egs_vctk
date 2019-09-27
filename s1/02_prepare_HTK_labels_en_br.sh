@@ -161,28 +161,42 @@ eval rm -f ${dir_labels}/utts_selected.data_block{0..${num_blocks}}  # eval comm
 echo "Remove durations..."
 mkdir -p "${dir_labels}/full_no_align/"
 mkdir -p "${dir_labels}/mono_no_align/"
-for i in ${dir_labels}/full/*.lab; do cp "$i" ${dir_labels}/full_no_align/; done
-find ${dir_labels}/full_no_align/ -name "*lab" -exec sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' {} +
-#sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' ${dir_labels}/full_no_align/*.lab
-for i in ${dir_labels}/mono/*.lab; do cp "$i" ${dir_labels}/mono_no_align/; done
-find ${dir_labels}/mono_no_align/ -name "*.lab" -exec sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' {} +
-#sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' ${dir_labels}/mono_no_align/*.lab
 
-for file_id in ${utts[@]}; do
-    if [[ "${file_id}" == *\/* ]]; then
-        speaker_id=${file_id%%/*}
-#        echo $file_id $speaker_id
-        if [ -n ${speaker_id} ]; then
-            utt_id=${file_id##*/}
-#            echo Copy ${utt_id} to ${speaker_id}/${utt_id}
-            mkdir -p ${dir_labels}/{full,full_no_align,mono,mono_no_align}/${speaker_id}
-            cp ${dir_labels}/full/${utt_id}.lab  ${dir_labels}/full/${speaker_id}/
-            cp ${dir_labels}/full_no_align/${utt_id}.lab  ${dir_labels}/full_no_align/${speaker_id}/
-            cp ${dir_labels}/mono/${utt_id}.lab  ${dir_labels}/mono/${speaker_id}/
-            cp ${dir_labels}/mono_no_align/${utt_id}.lab  ${dir_labels}/mono_no_align/${speaker_id}/
-        fi
-    fi
+cat <<EOF > remove_dur.sh
+#!/usr/bin/env bash
+file_id_list="\${1}"
+dir_labels="\${2}"
+IFS=$'\r\n' GLOBIGNORE='*' command eval 'utts=(\$(cat \${file_id_list}))'
+for file_id in \${utts[@]}; do
+  utt_id=\$(basename "\${file_id}")  # Remove possible speaker folder in path.
+  cp \${dir_labels}/full/\${utt_id}.lab \${dir_labels}/full_no_align/
+  sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' \${dir_labels}/full_no_align/\${utt_id}.lab
+  cp \${dir_labels}/mono/\${utt_id}.lab \${dir_labels}/mono_no_align/
+  sed -i 's/[ ]*[^ ]*[ ]*[^ ]* //' \${dir_labels}/mono_no_align/\${utt_id}.lab
+
+  if [[ "\${file_id}" == *\/* ]]; then  # File id contains a directory.
+      speaker_id=\${file_id%%/*}
+#        echo \$file_id \$speaker_id
+      if [ -n \${speaker_id} ]; then  # If speaker id is not empty.
+          utt_id=\${file_id##*/}
+#            echo Copy \${utt_id} to \${speaker_id}/\${utt_id}
+          mkdir -p \${dir_labels}/{full,full_no_align,mono,mono_no_align}/\${speaker_id}
+          # Alignment script requires the files in speaker specific subdirectories so copy them here.
+          # Don't move them because model trainers require them to be in the main directory.
+          cp \${dir_labels}/full/\${utt_id}.lab  \${dir_labels}/full/\${speaker_id}/
+          cp \${dir_labels}/full_no_align/\${utt_id}.lab  \${dir_labels}/full_no_align/\${speaker_id}/
+          cp \${dir_labels}/mono/\${utt_id}.lab  \${dir_labels}/mono/\${speaker_id}/
+          cp \${dir_labels}/mono_no_align/\${utt_id}.lab  \${dir_labels}/mono_no_align/\${speaker_id}/
+      fi
+  fi
 done
+EOF
+chmod +x "remove_dur.sh"
+
+./${cpu_1d_cmd} JOB=1:${num_blocks} ${dir_logs}/${name_file_id_list}_remove_dur_blockJOB.log\
+      ./remove_dur.sh ${dir_labels}/${name_file_id_list}_blockJOB ${dir_labels}
+#./remove_dur.sh ${dir_labels}/${name_file_id_list}_block1 ${dir_labels}
+rm "remove_dur.sh"
 
 echo "Generate MFCCs..."
 ./${cpu_1d_cmd} JOB=1:${num_blocks} ${dir_logs}/${name_file_id_list}_blockJOB.log \
@@ -191,7 +205,7 @@ echo "Generate MFCCs..."
                 --dir_mfcc ${dir_mfcc} \
                 --file_id_list ${dir_labels}/${name_file_id_list}_blockJOB
 # Remove intermediate files.
-eval rm -f ${dir_labels}/${name_file_id_list}_block{0..${num_blocks}}
+# eval rm -f ${dir_labels}/${name_file_id_list}_block{0..${num_blocks}}
 
 # Force align labels.
 echo "Force align labels..."
@@ -241,3 +255,5 @@ if [ "$num_utts" -ne "$num_aligned_labels" ]; then
         done
     fi
 fi
+
+# TODO: Remove speaker subdirectories and mfc dir.

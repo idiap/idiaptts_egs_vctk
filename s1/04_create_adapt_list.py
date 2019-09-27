@@ -6,23 +6,18 @@
 #
 
 """Module description:
-
+For detailed explanation see step 4. in the README.
 """
 
 # System imports.
-import logging
-import sys
 import os
-import glob
 import random
-import multiprocessing
 
 # Third-party imports.
 
 # Local source tree imports.
 
-create_utterance_splits = False  # If True, creates *_train, *_test, and *_val sets where utterance ids are disjoint.
-
+# create_utterance_splits = False  # If True, creates *_train, *_test, and *_val sets where utterance ids are disjoint.
 utts_range = 465
 seed = 1234
 test_set_size = 226
@@ -111,7 +106,7 @@ for voice in voices:
 
             # The recordings listed here have a lot of noise and the extraction of VUV fails so we exclude them.
             if not (speaker_id == "p236" and utt_id in ["002", "006", "063", "066", "071", "072", "073", "083", "086",
-                                                        "087", "088", "090", "096", "101", "102", "102", "103", "104"]):
+                                                        "087", "088", "090", "096", "101", "102", "103", "104"]):
                 if speaker_id in speaker_adapt[voice]:
                     if speaker_id not in utts_dict:
                         utts_dict[speaker_id] = {int(utt_id): line}
@@ -151,23 +146,34 @@ for voice in voices:
         print("Test utterance for {} ids ({}): {}".format(num_utts_train, len(utts_test), utts_test))
         print("Listening test utterance for {} ids ({}): {}".format(num_utts_train, len(utts_listening_test), utts_listening_test))
 
+        path_file_id_list_adapt = os.path.join(dir_data, "file_id_list_{}_adapt.txt".format(voice))
         path_file_id_list_adapt_train = os.path.join(dir_data, "file_id_list_{}_adapt{}_train.txt".format(voice, num_utts_train))
         path_file_id_list_adapt_val = os.path.join(dir_data, "file_id_list_{}_adapt{}_val.txt".format(voice, num_utts_train))
         path_file_id_list_adapt_test = os.path.join(dir_data, "file_id_list_{}_adapt{}_test.txt".format(voice, num_utts_train))
+        path_file_id_list_adapt_test_female = os.path.join(dir_data, "file_id_list_{}_adapt{}_test_female.txt".format(voice, num_utts_train))
+        path_file_id_list_adapt_test_male = os.path.join(dir_data, "file_id_list_{}_adapt{}_test_male.txt".format(voice, num_utts_train))
         path_file_id_list_adapt_listening_test = os.path.join(dir_data, "file_id_list_{}_adapt{}_listening_test.txt".format(voice, num_utts_train))
 
-        with open(path_file_id_list_adapt_train, "w") as file_id_list_adapt_train, \
-             open(path_file_id_list_adapt_val, "w") as file_id_list_adapt_val, \
-             open(path_file_id_list_adapt_test, "w") as file_id_list_adapt_test, \
-             open(path_file_id_list_adapt_listening_test, "w") as file_id_list_adapt_listening_test:
+        with open(path_file_id_list_adapt, "w") as file_id_list_adapt, \
+                open(path_file_id_list_adapt_train, "w") as file_id_list_adapt_train, \
+                open(path_file_id_list_adapt_val, "w") as file_id_list_adapt_val, \
+                open(path_file_id_list_adapt_test, "w") as file_id_list_adapt_test, \
+                open(path_file_id_list_adapt_test_female, "w") as file_id_list_adapt_test_female, \
+                open(path_file_id_list_adapt_test_male, "w") as file_id_list_adapt_test_male, \
+                open(path_file_id_list_adapt_listening_test, "w") as file_id_list_adapt_listening_test:
 
             for speaker_id, speaker_utts_dict in utts_dict.items():
                 for utt_id, line in speaker_utts_dict.items():
+                    file_id_list_adapt.write(line)
                     if utt_id in utts_train:
                         file_id_list_adapt_train.write(line)
                     elif utt_id in utts_test:
                         file_id_list_adapt_test.write(line)
                         if speaker_id in ["p276", "p278"] and utt_id in utts_listening_test:
                             file_id_list_adapt_listening_test.write(line)
+                        if speaker_id in ["p278", "p279"]:
+                            file_id_list_adapt_test_male.write(line)
+                        else:
+                            file_id_list_adapt_test_female.write(line)
                     else:
                         file_id_list_adapt_val.write(line)

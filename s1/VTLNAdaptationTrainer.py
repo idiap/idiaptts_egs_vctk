@@ -22,9 +22,8 @@ import shutil
 # Third-party imports.
 
 # Local source tree imports.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))))  # Adds the ITTS folder to the path.
-from src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
-from egs.VCTK.s1 import vctk_utils
+from idiaptts.src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
+import vctk_utils
 
 
 class VTLNAdaptionTrainer(VTLNSpeakerAdaptionModelTrainer):
@@ -65,21 +64,20 @@ def main():
     hparams = VTLNAdaptionTrainer.create_hparams()  # TODO: Parse input for hparams.
 
     # General parameters.
-    hparams.num_questions = 425
+    hparams.num_questions = 609
     hparams.voice = "English"
     hparams.work_dir = os.path.realpath(os.path.join("experiments", hparams.voice))
     hparams.data_dir = os.path.realpath("database")
     hparams.out_dir = os.path.join(hparams.work_dir, "VTLNModel")
     hparams.num_speakers = 33
     hparams.speaker_emb_dim = 128
-    hparams.sampling_frequency = 16000
     hparams.frame_size_ms = 5
     hparams.seed = 1234
     hparams.num_coded_sps = 30
     hparams.add_deltas = True
 
     # Training parameters.
-    hparams.epochs = 0  # 128
+    hparams.epochs = 128
     hparams.use_gpu = True
     hparams.train_pre_net = False
     hparams.pass_embs_to_pre_net = True
@@ -90,7 +88,7 @@ def main():
     hparams.batch_size_benchmark = hparams.batch_size_train
     hparams.batch_size_synth = hparams.batch_size_train
     hparams.grad_clip_norm_type = 2
-    hparams.grad_clip_max_norm = 100
+    hparams.grad_clip_max_norm = 1
     hparams.use_saved_learning_rate = False
     hparams.optimiser_args["lr"] = 0.01
     hparams.optimiser_type = "Adam"
@@ -102,15 +100,18 @@ def main():
     hparams.use_best_as_final_model = True
 
     hparams.model_type = None
+    hparams.pre_net_model_type = "RNNDYN-33x128_EMB_(-1)-2_RELU_1024-3_BiLSTM_512-1_FC_97"  # Expected pre-net type in loaded model.
 
     # Training.
-    source_model_name = "VTLN-emb_all.nn"
+    nn_dir = os.path.join(hparams.out_dir, "nn")
+    source_model_path = os.path.join(nn_dir, "VTLN-emb_all.nn")
     for num_utts_training in [10, 380]:
         hparams.model_name = "VTLN-emb_all-adapt{}.nn".format(num_utts_training)
-        nn_dir = os.path.join(hparams.out_dir, "nn")
+        hparams.model_path = None
         if hparams.epochs > 0 or not os.path.isfile(os.path.join(nn_dir, hparams.model_name)):
-            logging.info("Copy {} to {}.".format(source_model_name, hparams.model_name))
-            shutil.copyfile(os.path.join(nn_dir, source_model_name), os.path.join(nn_dir, hparams.model_name))
+            target_model_path = os.path.join(nn_dir, hparams.model_name)
+            logging.info("Copy {} to {}.".format(source_model_path, target_model_path))
+            shutil.copyfile(source_model_path, target_model_path)
 
         trainer = VTLNAdaptionTrainer(hparams, num_utts_training)
         trainer.init(hparams)
@@ -123,23 +124,23 @@ def main():
         trainer.benchmark(hparams, "database/file_id_list_English_adapt{}_test_male.txt".format(num_utts_training))
         trainer.benchmark(hparams, "database/file_id_list_English_adapt{}_test_female.txt".format(num_utts_training))
 
-        # # hparams.synth_gen_figure = False
-        # hparams.synth_vocoder = "WORLD"
-        #
-        # # For adaptation to speaker p276.
-        # synth_list = dict()
-        # synth_list["train"] = ["p276/p276_012"]  # , "p277/p277_012", "p278/p278_012", "p279/p279_012"]
-        # synth_list["val"] = ["p276/p276_013"]  # , "p277/p277_013", "p278/p278_013", "p279/p279_013"]
-        # synth_list["test"] = ["p276/p276_002", "p276/p276_161",
-        #                       "p277/p277_002", "p277/p277_161",
-        #                       "p278/p278_002", "p278/p278_161",
-        #                       "p279/p279_002", "p279/p279_161"]
-        #
-        # for key, value in synth_list.items():
-        #     hparams.synth_file_suffix = "_" + str(key) + "_" + hparams.synth_vocoder
-        #     # trainer.synth(hparams, synth_list[key])
-        #     # trainer.synth_ref(hparams, synth_list[key])
-        #     trainer.gen_figure(hparams, synth_list[key])
+        # hparams.synth_gen_figure = False
+        hparams.synth_vocoder = "WORLD"
+
+        # For adaptation to speaker p276.
+        synth_list = dict()
+        synth_list["train"] = ["p276/p276_012"]  # , "p277/p277_012", "p278/p278_012", "p279/p279_012"]
+        synth_list["val"] = ["p276/p276_013"]  # , "p277/p277_013", "p278/p278_013", "p279/p279_013"]
+        synth_list["test"] = ["p276/p276_002", "p276/p276_161",
+                              "p277/p277_002", "p277/p277_161",
+                              "p278/p278_002", "p278/p278_161",
+                              "p279/p279_002", "p279/p279_161"]
+
+        for key, value in synth_list.items():
+            hparams.synth_file_suffix = "_" + str(key) + "_" + hparams.synth_vocoder
+            trainer.synth(hparams, synth_list[key])
+            # trainer.synth_ref(hparams, synth_list[key])
+            # trainer.gen_figure(hparams, synth_list[key])
 
         # # Create synthesised samples for the subjective listening test.
         # if num_utts_training == 10:

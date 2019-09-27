@@ -20,19 +20,17 @@ import os
 import numpy as np
 
 # Third-party imports.
-import torch
 from nnmnkwii import metrics
 
 # Local source tree imports.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))))  # Adds the ITTS folder to the path.
-from src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
-from src.model_trainers.AcousticDeltasModelTrainer import AcousticDeltasModelTrainer
-from misc.utils import interpolate_lin
-from src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
-from src.data_preparation.world.WorldFeatLabelGen import WorldFeatLabelGen
-from src.data_preparation.questions.QuestionLabelGen import QuestionLabelGen
-from src.DataPlotter import DataPlotter
-from src.neural_networks.pytorch.models.WarpingLayer import WarpingLayer
+from idiaptts.src.model_trainers.vtln.VTLNSpeakerAdaptionModelTrainer import VTLNSpeakerAdaptionModelTrainer
+from idiaptts.src.model_trainers.AcousticModelTrainer import AcousticModelTrainer
+from idiaptts.misc.utils import interpolate_lin
+from idiaptts.src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
+from idiaptts.src.data_preparation.world.WorldFeatLabelGen import WorldFeatLabelGen
+from idiaptts.src.data_preparation.questions.QuestionLabelGen import QuestionLabelGen
+from idiaptts.src.DataPlotter import DataPlotter
+from idiaptts.src.neural_networks.pytorch.models.WarpingLayer import WarpingLayer
 
 
 class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
@@ -43,25 +41,34 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
     #
     def __init__(self, hparams):
         """Set your parameters here."""
-        dir_world_labels = os.path.join(hparams.work_dir, "VTLNArtificiallyWarped/phoneme_alpha")
+        dir_world_labels = os.path.join(hparams.work_dir, "WORLD_artificially_warped")
         dir_question_labels = os.path.join(hparams.work_dir, "questions")
 
-        # Read which files to process.
-        with open(os.path.join(hparams.data_dir, "file_id_list_" + hparams.voice + "_adapt_p276.txt")) as f:
-            id_list = f.readlines()
-        id_list[:] = [s.strip(' \t\n\r') for s in id_list]  # Trim line endings in-place.
+        np.random.seed(42)
+        # num_random_alphas = 7
+        self.num_phonemes = 70
+        self.alpha_range = 0.2
+        # self.phonemes_to_alpha_tensor = ((np.random.choice(np.random.rand(num_random_alphas), self.num_phonemes) - 0.5) * 2 * self.alpha_range)
+        self.phonemes_to_alpha_tensor = ((np.random.rand(self.num_phonemes) - 0.5) * 2 * self.alpha_range)
 
-        # TODO: Ignore unvoiced frames?
+        # Read which files to process.
+        with open(os.path.join(hparams.data_dir, "file_id_list_" + hparams.voice + "_adapt.txt")) as f:
+            id_list = f.readlines()
+        id_list[:] = [s.strip(' \t\n\r') for s in id_list if "p276" in s]  # Trim line endings and select speaker.
+
+        # # To ignore unvoiced frames.
         # if hparams.add_deltas:
         #     self.loss_function = WMSELoss(hparams.num_coded_sps * 3 + 7, -4, weight=0.0, decision_index_weight=1.0, reduce=False)
         # else:
         #     self.loss_function = WMSELoss(hparams.num_coded_sps + 3, -2, weight=0.0, decision_index_weight=1.0, reduce=False)
+
         super().__init__(dir_world_labels, dir_question_labels, id_list, hparams.num_questions, hparams)
 
     def gen_figure_from_output(self, id_name, label, hidden, hparams):
         _, alphas = hidden
         labels_post = self.OutputGen.postprocess_sample(label)
-        coded_sp, lf0, vuv, bap = WorldFeatLabelGen.convert_to_world_features(labels_post, contains_deltas=False,
+        coded_sp, lf0, vuv, bap = WorldFeatLabelGen.convert_to_world_features(labels_post,
+                                                                              contains_deltas=False,
                                                                               num_coded_sps=hparams.num_coded_sps)
         sp = WorldFeatLabelGen.mgc_to_sp(coded_sp, hparams.synth_fs)
         lf0, _ = interpolate_lin(lf0)
@@ -75,12 +82,11 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
                                                                                                    num_coded_sps=hparams.num_coded_sps)
         original_lf0, _ = interpolate_lin(original_lf0)
 
-        np.random.seed(7)
-        phonemes_to_alpha_tensor = ((np.random.rand(53) - 0.5) * 2 * 0.2)
-        questions = QuestionLabelGen.load_sample(id_name, "experiments/" + hparams.voice + "/questions/",
+        questions = QuestionLabelGen.load_sample(id_name,
+                                                 os.path.join("experiments", hparams.voice, "questions"),
                                                  num_questions=hparams.num_questions)[:len(alphas)]
-        phoneme_indices = QuestionLabelGen.questions_to_phoneme_indices(questions, self.phoneme_indices)
-        alpha_vec = phonemes_to_alpha_tensor[phoneme_indices]
+        phoneme_indices = QuestionLabelGen.questions_to_phoneme_indices(questions, hparams.phoneme_indices)
+        alpha_vec = self.phonemes_to_alpha_tensor[phoneme_indices % len(self.phonemes_to_alpha_tensor)]
 
         # Get a data plotter.
         grid_idx = 0
@@ -118,7 +124,7 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
         if hasattr(hparams, "phoneme_indices") and hparams.phoneme_indices is not None \
            and hasattr(hparams, "question_file") and hparams.question_file is not None:
             questions = QuestionLabelGen.load_sample(id_name,
-                                                     "experiments/" + hparams.voice + "/questions/",
+                                                     os.path.join("experiments", hparams.voice, "questions"),
                                                      num_questions=hparams.num_questions)[:len(lf0)]
             np_phonemes = QuestionLabelGen.questions_to_phonemes(questions, hparams.phoneme_indices, hparams.question_file)
             plotter.set_annotations(grid_idx, np_phonemes)
@@ -142,9 +148,6 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
         wl.set_norm_params(*self.OutputGen.norm_params)
         batch_size = len(dict_outputs_post)
 
-        np.random.seed(7)
-        phonemes_to_alpha_tensor = ((np.random.rand(53) - 0.5) * 2 * 0.2)
-
         for cep_coef_start in [0, 1]:
             for cep_coef_end in (range(10, 19) if cep_coef_start == 1 else [-1]):
                 alphas_rmse = 0.0
@@ -160,8 +163,10 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
                                                                                    num_coded_sps=hparams.num_coded_sps)
 
                     # Load the original sample without warping.
-                    org_output = self.OutputGen.load_sample(id_name, "experiments/" + hparams.voice + "/WORLD/",
-                                                            add_deltas=True, num_coded_sps=hparams.num_coded_sps)
+                    org_output = self.OutputGen.load_sample(id_name,
+                                                            os.path.join("experiments", hparams.voice, "WORLD"),
+                                                            add_deltas=True,
+                                                            num_coded_sps=hparams.num_coded_sps)
                     org_output = org_output[:len(output_mgc_post)]
                     org_mgc_post = org_output[:, :hparams.num_coded_sps]
                     org_output_pre = self.OutputGen.preprocess_sample(org_output)  # Preprocess the sample.
@@ -169,7 +174,14 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
 
                     # Load the original warped sample.
                     org_mgc_warped_post = dict_original_post[id_name][:len(output_mgc_post), :hparams.num_coded_sps]
-                    # org_mgc_warped_post = self.OutputGen.load_sample(id_name, "experiments/" + hparams.voice + "/vtln_speaker_static/alpha_1.10/", add_deltas=True, num_coded_sps=hparams.num_coded_sps)[:len(output_mgc_post), :hparams.num_coded_sps]
+                    # org_mgc_warped_post = self.OutputGen.load_sample(
+                    #                                         id_name,
+                    #                                         os.path.join("experiments",
+                    #                                                      hparams.voice,
+                    #                                                      "vtln_speaker_static",
+                    #                                                      "alpha_1.10"),
+                    #                                         add_deltas=True,
+                    #                                         num_coded_sps=hparams.num_coded_sps)[:len(output_mgc_post), :hparams.num_coded_sps]
 
                     # Compute error between warped version and NN output.
                     output_to_warped_mcd += metrics.melcd(org_mgc_warped_post[:, cep_coef_start:cep_coef_end],
@@ -179,19 +191,22 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
                                                        org_mgc_post[:, cep_coef_start:cep_coef_end])
 
                     # Get original alphas from phonemes.
-                    questions = QuestionLabelGen.load_sample(id_name, "experiments/" + hparams.voice + "/questions/",
+                    questions = QuestionLabelGen.load_sample(id_name,
+                                                             os.path.join("experiments", hparams.voice, "questions"),
                                                              num_questions=hparams.num_questions)[:len(output_alphas)]
-                    phoneme_indices = QuestionLabelGen.questions_to_phoneme_indices(questions, self.phoneme_indices)
-                    org_alphas = phonemes_to_alpha_tensor[phoneme_indices, None]
+                    phoneme_indices = QuestionLabelGen.questions_to_phoneme_indices(questions, hparams.phoneme_indices)
+                    org_alphas = self.phonemes_to_alpha_tensor[phoneme_indices % len(self.phonemes_to_alpha_tensor), None]
 
                     # Compute RMSE of alphas.
                     alphas_rmse += math.sqrt(((org_alphas - output_alphas) ** 2).sum())
 
                     # Warp the original mgcs with the alpha predicted by the network.
-                    org_mgc_nn_warped, _ = wl(torch.from_numpy(org_mgc_pre[:, None, ...]), None, (len(org_mgc_pre),),
-                                              (len(org_mgc_pre),), alphas=torch.from_numpy(output_alphas[:, None, ...]))  # Warp with the NN alphas.
-                    org_output_pre[:, :hparams.num_coded_sps * (3 if hparams.add_deltas else 1)] = org_mgc_nn_warped[:, 0, ...].detach()  # Write warped mgcs back.
-                    org_mgc_nn_warped_post = self.OutputGen.postprocess_sample(org_output_pre, apply_mlpg=False)[:, :hparams.num_coded_sps]  # Postprocess sample.
+                    org_mgc_nn_warped, _ = wl.forward_sample(org_mgc_pre, output_alphas)  # Warp with the NN alphas.
+                    org_output_pre[:, :hparams.num_coded_sps * (3 if hparams.add_deltas else 1)]\
+                        = org_mgc_nn_warped[:, 0, ...].detach()  # Write warped mgcs back.
+                    org_mgc_nn_warped_post = self.OutputGen.postprocess_sample(
+                                                                org_output_pre,
+                                                                apply_mlpg=False)[:, :hparams.num_coded_sps]
 
                     # Compute error between correctly warped version and original mgcs warped with NN alpha.
                     org_to_nn_warping_mcd += metrics.melcd(org_mgc_warped_post[:, cep_coef_start:cep_coef_end],
@@ -205,15 +220,16 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
                 self.logger.info("MCep from {} to {}:".format(cep_coef_start, cep_coef_end))
                 self.logger.info("RMSE alphas: {:4.2f}".format(alphas_rmse))
                 self.logger.info("Original mgc to warped mgc error: {:4.2f}dB".format(org_to_warped_mcd))
-                self.logger.info("Original mgc warped by network alpha to warped mgc error: {:4.2f}dB ({:2.2f}%)".format(org_to_nn_warping_mcd, (1 - org_to_nn_warping_mcd / org_to_warped_mcd) * 100))
+                self.logger.info("Original mgc warped by network alpha to warped mgc error: {:4.2f}dB ({:2.2f}%)"
+                                 .format(org_to_nn_warping_mcd, (1 - org_to_nn_warping_mcd / org_to_warped_mcd) * 100))
                 self.logger.info("Network output to original warped mgc error: {:4.2f}dB".format(output_to_warped_mcd))
 
         return mcd, f0_rmse, vuv_error_rate, bap_mcd
 
 
-class BaselineTrainer(AcousticDeltasModelTrainer):
+class BaselineTrainer(AcousticModelTrainer):
     """
-    Implementation of an AcousticDeltasModelTrainer with predefined parameters.
+    Implementation of an AcousticModelTrainer with predefined parameters.
 
     Use question labels as input and WORLD features as output. Synthesize audio from model output.
     """
@@ -228,9 +244,9 @@ class BaselineTrainer(AcousticDeltasModelTrainer):
         dir_question_labels = os.path.join(hparams.work_dir, "questions")
 
         # Read which files to process.
-        with open(os.path.join(hparams.data_dir, "file_id_list_" + hparams.voice + "_adapt_p276.txt")) as f:
+        with open(os.path.join(hparams.data_dir, "file_id_list_" + hparams.voice + "_adapt.txt")) as f:
             id_list = f.readlines()
-        id_list = [s.strip(' \t\n\r') for s in id_list]  # Trim line endings in-place.
+        id_list = [s.strip(' \t\n\r') for s in id_list if "p276" in s]  # Trim line endings in-place.
 
         self.loss_function = WMSELoss(hparams.num_coded_sps * 3 + 7, -4, weight=0.0, decision_index_weight=1.0, reduce=False)
         super().__init__(dir_world_labels, dir_question_labels, id_list, hparams.num_questions, hparams)
@@ -242,18 +258,28 @@ def main():
     hparams = VTLNArtificiallyWarpedTrainer.create_hparams()  # TODO: Parse input for hparams.
 
     # General parameters.
-    hparams.phoneme_indices = np.arange(59, 107, dtype=np.int)
-    hparams.question_file = os.path.dirname(os.environ['IDIAPTTS_ROOT']) + "/tools/tts_frontend/questions/questions-en-radio_dnn_416.hed"
-    # hparams.phoneme_indices = np.arange(86, 347, 5, dtype=np.int)
-    # hparams.question_file = os.path.dirname(os.environ['IDIAPTTS_ROOT']) + "/tools/tts_frontend/questions/questions-de-festival_496.hed"
-    hparams.num_questions = 425
+    hparams.num_questions = 609
     hparams.voice = "English"
+
+    if hparams.num_questions == 609:
+        hparams.add_hparam("phoneme_indices", np.arange(92, 162, dtype=np.int))
+        hparams.question_file = os.path.join(os.environ['IDIAPTTS_ROOT'],
+                                             "scripts",
+                                             "tts_frontend",
+                                             "questions",
+                                             "questions-en-unilex_dnn_600.hed")
+    elif hparams.num_questions == 425:
+        hparams.add_hparam("phoneme_indices", np.arange(58, 107, dtype=np.int))
+        hparams.question_file = os.path.join(os.environ['IDIAPTTS_ROOT'],
+                                             "scripts",
+                                             "tts_frontend",
+                                             "questions",
+                                             "questions-en-radio_dnn_416.hed")
     hparams.work_dir = os.path.realpath(os.path.join("experiments", hparams.voice))
     hparams.data_dir = os.path.realpath("database")
     hparams.out_dir = os.path.join(hparams.work_dir, "VTLNArtificiallyWarped")
     hparams.num_speakers = 1
     hparams.speaker_emb_dim = 16
-    hparams.sampling_frequency = 16000
     hparams.frame_size_ms = 5
     hparams.seed = 1234
     hparams.num_coded_sps = 30
@@ -273,7 +299,7 @@ def main():
     hparams.optimiser_type = "Adam"
     hparams.scheduler_type = "Plateau"
     hparams.scheduler_args["patience"] = 5
-    hparams.start_with_test = True
+    # hparams.start_with_test = True
     hparams.epochs_per_checkpoint = 5
     hparams.save_final_model = True
     hparams.use_best_as_final_model = True
@@ -303,7 +329,8 @@ def main():
     #     # trainer.gen_figure(synth_list[key], hparams)
 
     # Training parameters.
-    hparams.epochs = 15
+    hparams.epochs = 70
+    hparams.optimiser_args["lr"] = 0.01
     hparams.train_pre_net = False
     hparams.dropout = 0.05
     hparams.batch_size_train = 2
@@ -325,7 +352,7 @@ def main():
 
     hparams.synth_gen_figure = True
     for key, value in synth_list.items():
-        hparams.synth_file_suffix = "_" + str(key) + "_" + hparams.synth_vocoder
+        hparams.synth_file_suffix = "_" + str(key)
         trainer.synth(hparams, synth_list[key])
         # trainer.gen_figure(synth_list[key], hparams)
 

@@ -18,15 +18,14 @@ import os
 # Third-party imports.
 
 # Local source tree imports.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.getcwd()))))  # Adds the ITTS folder to the path.
-from src.model_trainers.AcousticDeltasModelTrainer import AcousticDeltasModelTrainer
-from src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
-from egs.VCTK.s1 import vctk_utils
+from idiaptts.src.model_trainers.AcousticModelTrainer import AcousticModelTrainer
+from idiaptts.src.neural_networks.pytorch.loss.WMSELoss import WMSELoss
+import vctk_utils
 
 
-class BaselineTrainer(AcousticDeltasModelTrainer):
+class BaselineTrainer(AcousticModelTrainer):
     """
-    Implementation of an AcousticDeltasModelTrainer with predefined parameters.
+    Implementation of an AcousticModelTrainer with predefined parameters.
 
     Use question labels as input and WORLD features as output. Synthesize audio from model output.
     """
@@ -69,44 +68,44 @@ def main():
     hparams = BaselineTrainer.create_hparams()  # TODO: Parse input for hparams.
 
     # General parameters
-    hparams.num_questions = 425
+    hparams.num_questions = 609
     hparams.voice = "English"
     hparams.work_dir = os.path.realpath(os.path.join("experiments", hparams.voice))
     hparams.data_dir = os.path.realpath("database")
     hparams.out_dir = os.path.join(hparams.work_dir, "BaselineModel")
 
-    hparams.sampling_frequency = 16000
+    hparams.num_coded_sps = 30
     hparams.frame_size_ms = 5
     hparams.seed = 1234
-    hparams.num_coded_sps = 30
 
     # Training parameters.
     hparams.epochs = 15  # 15
     hparams.use_gpu = True
     hparams.dropout = 0.05
-    hparams.batch_size_train = 2  # 32
+    hparams.batch_size_train = 32
     hparams.batch_size_val = 48
     hparams.batch_size_benchmark = 48
     hparams.use_saved_learning_rate = True  # Don't override learning rate if loaded from checkpoint.
     hparams.optimiser_args["lr"] = 0.001
     hparams.grad_clip_norm_type = 2
-    hparams.grad_clip_max_norm = 100
+    hparams.grad_clip_max_norm = 1.0
     hparams.epochs_per_checkpoint = 5
     hparams.start_with_test = True
     hparams.save_final_model = True
     hparams.scheduler_args["patience"] = 5
     hparams.use_best_as_final_model = True
 
-    hparams.model_type = None
-    # hparams.model_type = "RNNDYN-33x128_EMB_(-1)-2_RELU_1024-3_BiLSTM_512-1_FC_97"
-    hparams.f_get_emb_index = (vctk_utils.id_name_to_speaker_English,)
+    # hparams.model_type = None
+    hparams.model_type = "RNNDYN-33x128_EMB_(-1)-2_RELU_1024-3_BiLSTM_512-1_FC_97"
+    hparams.add_hparam("f_get_emb_index", [vctk_utils.id_name_to_speaker_English])
     # hparams.model_type = "RNNDYN-2_RELU_1024-3_BiLSTM_512-1_FC_97"  # Average model.
     # hparams.f_get_emb_index = None  # No embedding input for average model.
 
-    hparams.model_name = "Bds-{}{}{}-lr{}.nn".format("b{}-".format(hparams.batch_size_train) if hparams.batch_size_train != 32 else "",
-                                                     "emb_all" if hparams.f_get_emb_index is not None else "avg",
-                                                     "-dropout" + str(hparams.dropout).split('.')[1] if hparams.dropout != 0 else "",
-                                                     str(hparams.optimiser_args["lr"]).split('.')[1])
+    hparams.model_name = "Bds-{}{}{}-lr{}.nn".format(
+        "b{}-".format(hparams.batch_size_train) if hparams.batch_size_train != 32 else "",
+        "emb_all" if hparams.f_get_emb_index is not None else "avg",
+        "-dropout" + str(hparams.dropout).split('.')[1] if hparams.dropout != 0 else "",
+        str(hparams.optimiser_args["lr"]).split('.')[1])
 
     trainer = BaselineTrainer(hparams)
     trainer.init(hparams)
@@ -118,20 +117,21 @@ def main():
     # hparams.synth_load_org_sp = False
     # hparams.synth_load_org_bap = False
 
-    # synth_list = dict()
-    # synth_list["train"] = ["p225/p225_010", "p226/p226_010", "p239/p239_010"]
-    # synth_list["val"] = ["p225/p225_051", "p226/p226_009", "p239/p239_066"]
-    # synth_list["test"] = ["p225/p225_033", "p226/p226_175", "p239/p239_056"]
-    #
-    # # with open(os.path.join(hparams.data_dir, "file_id_list_English_listening_test.txt" + sys.argv[1])) as f:
-    # #     id_list_val = f.readlines()
-    # # synth_list["val"] = [s.strip(' \t\n\r') for s in id_list_val]  # Trim entries in-place.
-    #
-    # for key, value in synth_list.items():
-    #     hparams.synth_file_suffix = "_" + str(key) + "_" + hparams.synth_vocoder
-    #     trainer.synth(hparams, synth_list[key])
-    #     trainer.synth_ref(hparams, synth_list[key])
-    #     # trainer.gen_figure(hparams, synth_list[key])
+    synth_list = dict()
+    synth_list["train"] = ["p225/p225_010", "p226/p226_010", "p239/p239_010"]
+    synth_list["val"] = ["p225/p225_051", "p226/p226_009", "p239/p239_066"]
+    synth_list["test"] = ["p225/p225_033", "p226/p226_175", "p239/p239_056"]
+
+    # with open(os.path.join(hparams.data_dir, "file_id_list_English_listening_test.txt" + sys.argv[1])) as f:
+    #     id_list_val = f.readlines()
+    # synth_list["val"] = [s.strip(' \t\n\r') for s in id_list_val]  # Trim entries in-place.
+
+    hparams.synth_gen_figure = False
+    for key, value in synth_list.items():
+        hparams.synth_file_suffix = "_" + str(key)
+        trainer.synth(hparams, synth_list[key])
+        trainer.synth_ref(hparams, synth_list[key])
+        # trainer.gen_figure(hparams, synth_list[key])
 
 
 if __name__ == "__main__":

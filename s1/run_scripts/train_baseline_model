@@ -30,8 +30,9 @@ if [ "${queue}" != "cpu" ]; then
     fi
 fi
 
+export PYTHONPATH=${PYTHONPATH:-}:${PWD}
 name="${model_name}"
-grid_args="-l ${queue} -l hostname=vgne*|jurasix* -S $(which python3) -v PYTHONPATH -cwd -e ${log_file} -o ${log_file} -N ${name}"
+grid_args="-l ${queue} -l hostname=vgne*|jurasix* -S $(which python3) -v PYTHONPATH -v IDIAPTTS_ROOT -cwd -e ${log_file} -o ${log_file} -N ${name}"
 
 if [ "${queue}" == "cpu" ]; then  # [ == ] literal matching
     $(which python3) BaselineTrainer.py

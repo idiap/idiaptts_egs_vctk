@@ -110,19 +110,15 @@ utts_full=()
 utts_half=()
 speaker_idx=0
 for folder in $(ls "${db_path}"/wav48/); do
-#folder="p225"
 #    echo "Collecting files from speaker ${folder}..."
     for file in "${db_path}"/wav48/${folder}/*.wav; do
         file=$(basename ${file})
 #        echo "${folder}/${file}"
-        utts_full+="${folder}/${file}"
-        if (( ${speaker_idx} < ${num_speakers_in_half} )); then
-            utts_half+="${folder}/${file}"
-#            if [[ " ${speaker_half_adapt[*]} " == *" ${folder} "* ]]; then
-#                utts_half_adapt+="${folder}/${file}"
-#            else
-#                utts_half_train+="${folder}/${file}"
-#            fi
+        if ! [[ ${file} =~ p295_047|p302_013|p303_303|p305_423|p323_424|p330_424|p335_424|p341_101|p345_292 ]]; then  # Exclude broken files here. #p297_421|p295_047|p302_013|p303_303|p305_423|p323_424|p330_424|p335_424|p341_101|p345_292
+          utts_full+="${folder}/${file}"
+          if (( ${speaker_idx} < ${num_speakers_in_half} )); then
+              utts_half+="${folder}/${file}"
+          fi
         fi
     done
     speaker_idx=$((speaker_idx+1))
@@ -130,7 +126,9 @@ done
 
 utts_full="${utts_full//.wav/ }"  # Remove the wav extension.
 utts_full=(${utts_full})  # Convert to array.
+
 printf "%s\n" "${utts_full[@]}" >| ${file_id_list}
+
 utts_half="${utts_half//.wav/ }"  # Remove the wav extension.
 utts_half=(${utts_half})  # Convert to array.
 printf "%s\n" "${utts_half[@]}" >| ${file_id_list_half}
@@ -248,7 +246,7 @@ if [ "$silence_removal" = true ]; then
                 --dir_out ${dir_data}/wav/ \
                 --file_id_list ${dir_data}/${name_file_id_list}_blockJOB \
                 --silence_db -30 \
-                --min_silence_ms 10
+                --min_silence_ms 200
 
     # Copy files not touched in this remove silence step.
     cp -R -u -p "${dir_data}/wav_org_silence/*" "${dir_data}/wav"  # -u copy only when source is newer than destination file or if is missing, -p preserve mode, ownership, timestamps etc.
