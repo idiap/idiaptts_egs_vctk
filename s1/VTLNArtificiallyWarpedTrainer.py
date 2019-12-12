@@ -70,7 +70,7 @@ class VTLNArtificiallyWarpedTrainer(VTLNSpeakerAdaptionModelTrainer):
         coded_sp, lf0, vuv, bap = WorldFeatLabelGen.convert_to_world_features(labels_post,
                                                                               contains_deltas=False,
                                                                               num_coded_sps=hparams.num_coded_sps)
-        sp = WorldFeatLabelGen.mgc_to_sp(coded_sp, hparams.synth_fs)
+        sp = WorldFeatLabelGen.mcep_to_amp_sp(coded_sp, hparams.synth_fs)
         lf0, _ = interpolate_lin(lf0)
 
         # Load original lf0.

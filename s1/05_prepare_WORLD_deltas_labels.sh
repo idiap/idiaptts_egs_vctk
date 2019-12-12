@@ -55,7 +55,7 @@ voice=${1:-"demo"}
 num_workers=${2:-"1"}  # Default number of workers is one.
 file_id_list=${3:-"${dir_data}/file_id_list_${voice}.txt"}
 num_coded_sps=${4:-"60"}  # Default dimension of frequency features. Should depend on sampling frequency.
-sp_type="mgc"
+sp_type="mcep"
 
 # Fixed path with parameters.
 dir_audio="${dir_data}/wav/"
@@ -101,28 +101,29 @@ echo "Generate WORLD deltas features..."
                 --dir_out ${dir_out} \
                 --file_id_list ${dir_out}/${name_file_id_list}_blockJOB \
                 --add_deltas \
+                --sp_type ${sp_type} \
                 --num_coded_sps ${num_coded_sps}
 
 # Combine normalisation parameters of all blocks.
-for feature in "lf0" "bap" "mgc${num_coded_sps}"; do
+for feature in "lf0" "bap" "${sp_type}${num_coded_sps}"; do
     #mkdir -p "${dir_out}"/${feature}/
     #file_list_min_max=()
     file_list_mean_covariance=()
     for (( b=1; b <= $num_blocks; b++ )); do
         #file_list_min_max+=("${dir_out}"/${name_file_id_list}_block${b}-min-max.bin)
-        file_list_mean_covariance+=("${dir_deltas}"${name_file_id_list}_block${b}_${feature}-stats.bin)
+        file_list_mean_covariance+=("${dir_deltas}"${name_file_id_list}_block${b}-${feature}-stats.bin)
     done
 
     echo "Combining stats for ${feature}..."
     python3 ${dir_misc}/normalisation/MeanCovarianceExtractor.py \
                     --dir_out "${dir_deltas}" \
                     --file_list "${file_list_mean_covariance[@]}" \
-                    --file_name "_${feature}"
+                    --file_name "${feature}"
 
     # Remove intermediate files.
     for (( b=1; b <= $num_blocks; b++ )); do
-        rm "${dir_deltas}"${name_file_id_list}_block${b}_${feature}-stats.bin
-        rm "${dir_deltas}"${name_file_id_list}_block${b}_${feature}-mean-covariance.bin
+        rm "${dir_deltas}"${name_file_id_list}_block${b}-${feature}-stats.bin
+        rm "${dir_deltas}"${name_file_id_list}_block${b}-${feature}-mean-covariance.bin
     done
 done
 

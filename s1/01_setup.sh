@@ -245,8 +245,9 @@ if [ "$silence_removal" = true ]; then
                 --dir_wav ${dir_data}/wav_org_silence/ \
                 --dir_out ${dir_data}/wav/ \
                 --file_id_list ${dir_data}/${name_file_id_list}_blockJOB \
-                --silence_db -30 \
-                --min_silence_ms 200
+                --min_silence_ms 200 \
+                --silence_db -19
+                # -19 dB gives good results for the start of p226_009 and the end of p226_153.
 
     # Copy files not touched in this remove silence step.
     cp -R -u -p "${dir_data}/wav_org_silence/*" "${dir_data}/wav"  # -u copy only when source is newer than destination file or if is missing, -p preserve mode, ownership, timestamps etc.
